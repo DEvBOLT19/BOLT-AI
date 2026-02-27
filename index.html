@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Offline Web AI Chat</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --panel: #141b34;
+      --panel-2: #1d274a;
+      --text: #e7ebff;
+      --muted: #9ea8d6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: radial-gradient(circle at top, #19234a, var(--bg));
+      color: var(--text);
+      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      display: grid;
+      place-items: center;
+      padding: 1rem;
+    }
+    .app {
+      width: min(960px, 100%);
+      background: color-mix(in srgb, var(--panel) 94%, black);
+      border: 1px solid #2d3766;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+    }
+    header {
+      padding: 1rem 1.25rem;
+      border-bottom: 1px solid #2d3766;
+      display: grid;
+      gap: 0.5rem;
+      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+    }
+    h1 { margin: 0; font-size: 1.1rem; letter-spacing: 0.02em; }
+    .hint { color: var(--muted); font-size: 0.88rem; }
+    .chat {
+      height: min(65vh, 620px);
+      overflow-y: auto;
+      padding: 1rem;
+      display: grid;
+      gap: 0.75rem;
+      background: #0d132b;
+    }
+    .bubble {
+      max-width: 85%;
+      padding: 0.7rem 0.85rem;
+      border-radius: 12px;
+      white-space: pre-wrap;
+    }
+    .user { margin-left: auto; background: #315bb8; }
+    .assistant { margin-right: auto; background: #1e2a4f; border: 1px solid #2f3b68; }
+    form {
+      padding: 0.9rem;
+      border-top: 1px solid #2d3766;
+      display: grid;
+      grid-template-columns: 1fr 110px;
+      gap: 0.6rem;
+      background: color-mix(in srgb, var(--panel-2) 45%, transparent);
+    }
+    textarea, button {
+      width: 100%;
+      border: 1px solid #37457e;
+      border-radius: 8px;
+      background: #0f1530;
+      color: var(--text);
+      font: inherit;
+      padding: 0.65rem 0.75rem;
+    }
+    textarea::placeholder { color: #808ab8; }
+    button {
+      background: linear-gradient(180deg, #5e91ff, #3f73dc);
+      border: 0;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    @media (max-width: 720px) {
+      form { grid-template-columns: 1fr; }
+      .bubble { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header>
+      <h1>Offline Web AI Chat</h1>
+      <div class="hint">No API key required. This AI runs fully in your browser with rule-based responses.</div>
+    </header>
+
+    <section class="chat" id="chat" aria-live="polite"></section>
+
+    <form id="chatForm">
+      <textarea id="prompt" rows="2" placeholder="Type a message..." required></textarea>
+      <button id="sendBtn" type="submit">Send</button>
+    </form>
+  </main>
+
+  <script>
+    const chatEl = document.getElementById('chat');
+    const promptEl = document.getElementById('prompt');
+
+    const memory = {
+      userName: '',
+      topics: []
+    };
+
+    function appendBubble(text, role = 'assistant') {
+      const div = document.createElement('div');
+      div.className = `bubble ${role}`;
+      div.textContent = text;
+      chatEl.appendChild(div);
+      chatEl.scrollTop = chatEl.scrollHeight;
+    }
+
+    function rememberTopic(text) {
+      const cleaned = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
+      const keywords = cleaned.filter(word => word.length > 4);
+      memory.topics = [...new Set([...memory.topics, ...keywords])].slice(-12);
+    }
+
+    function generateReply(input) {
+      const text = input.toLowerCase().trim();
+
+      const nameMatch = input.match(/(?:my name is|i am|i'm)\s+([a-zA-Z]+)/i);
+      if (nameMatch) {
+        memory.userName = nameMatch[1];
+        return `Nice to meet you, ${memory.userName}! I will remember your name in this session.`;
+      }
+
+      if (/\b(hello|hi|hey)\b/.test(text)) {
+        return `Hey${memory.userName ? ` ${memory.userName}` : ''}! How can I help you today?`;
+      }
+
+      if (/\b(who are you|what are you)\b/.test(text)) {
+        return 'I am an offline web AI assistant. I do not use external APIs, and I answer from built-in logic.';
+      }
+
+      if (/\b(help|what can you do)\b/.test(text)) {
+        return 'I can chat, summarize your text, brainstorm ideas, and remember simple details (like your name) during this page session.';
+      }
+
+      if (text.startsWith('summarize ')) {
+        const content = input.slice(10).trim();
+        if (!content) return 'Please add text after "summarize".';
+        const sentences = content.split(/[.!?]/).map(s => s.trim()).filter(Boolean);
+        return sentences.length <= 1
+          ? `Summary: ${content}`
+          : `Summary: ${sentences[0]}. ${sentences[1] ? sentences[1] + '.' : ''}`.trim();
+      }
+
+      if (/\b(idea|brainstorm)\b/.test(text)) {
+        const seed = memory.topics[0] || 'your project';
+        return `Brainstorm ideas for ${seed}:\n1) Build a simple MVP\n2) Share with 5 users and collect feedback\n3) Improve based on real usage`;
+      }
+
+      rememberTopic(input);
+      const recent = memory.topics.slice(-3).join(', ');
+
+      const fallbackReplies = [
+        `Interesting. Tell me more${memory.userName ? `, ${memory.userName}` : ''}.`,
+        'Got it. Would you like a short plan or a detailed explanation?',
+        'I can help break that into steps if you want.',
+        recent ? `I noticed topics like: ${recent}. Want to go deeper on one?` : 'Can you share a little more context so I can help better?'
+      ];
+
+      return fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
+    }
+
+    document.getElementById('chatForm').addEventListener('submit', (event) => {
+      event.preventDefault();
+      const userText = promptEl.value.trim();
+      if (!userText) return;
+
+      appendBubble(userText, 'user');
+      promptEl.value = '';
+
+      const reply = generateReply(userText);
+      setTimeout(() => appendBubble(reply, 'assistant'), 180);
+    });
+
+    appendBubble('Welcome! I am an offline AI chat assistant. No API key needed.', 'assistant');
+  </script>
+</body>
+</html>
