@@ -453,6 +453,7 @@
       if (/\b(help|what can you do)\b/.test(text)) {
         return 'I can chat, summarize content, create quick plans, brainstorm ideas, and adapt response style from your conversation.';
       }
+    }
 
       if (text.startsWith('summarize ')) {
         const content = input.slice(10).trim();
@@ -484,7 +485,7 @@
       return fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
     }
 
-    document.getElementById('chatForm').addEventListener('submit', (event) => {
+    document.getElementById('chatForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const userText = promptEl.value.trim();
       if (!userText) return;
