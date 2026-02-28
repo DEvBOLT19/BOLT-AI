@@ -7,97 +7,234 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0b1020;
-      --panel: #141b34;
-      --panel-2: #1d274a;
-      --text: #e7ebff;
-      --muted: #9ea8d6;
+      --bg: #070b17;
+      --bg-soft: #0d1428;
+      --panel: #101a33;
+      --panel-2: #172344;
+      --text: #ecf0ff;
+      --muted: #9ca9d4;
+      --accent: #69a2ff;
+      --accent-2: #4d7de0;
+      --ok: #6ad3a9;
+      --border: #273763;
     }
-    * { box-sizing: border-box; }
+
+    * {
+      box-sizing: border-box;
+    }
+
     body {
       margin: 0;
       min-height: 100vh;
-      background: radial-gradient(circle at top, #19234a, var(--bg));
+      background:
+        radial-gradient(1200px 500px at 20% -10%, #1c2f63 0%, transparent 60%),
+        radial-gradient(900px 500px at 90% -20%, #12386d 0%, transparent 55%),
+        linear-gradient(180deg, #080d1c, var(--bg));
       color: var(--text);
-      font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+      font: 15px/1.5 Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
       display: grid;
       place-items: center;
-      padding: 1rem;
+      padding: 1.25rem;
     }
+
     .app {
-      width: min(960px, 100%);
+      width: min(980px, 100%);
       background: color-mix(in srgb, var(--panel) 94%, black);
-      border: 1px solid #2d3766;
-      border-radius: 14px;
+      border: 1px solid var(--border);
+      border-radius: 16px;
       overflow: hidden;
-      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(4px);
     }
+
     header {
       padding: 1rem 1.25rem;
-      border-bottom: 1px solid #2d3766;
-      display: grid;
-      gap: 0.5rem;
-      background: color-mix(in srgb, var(--panel-2) 60%, transparent);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.85rem;
+      background: color-mix(in srgb, var(--panel-2) 55%, transparent);
     }
-    h1 { margin: 0; font-size: 1.1rem; letter-spacing: 0.02em; }
-    .hint { color: var(--muted); font-size: 0.88rem; }
+
+    h1 {
+      margin: 0;
+      font-size: 1.02rem;
+      letter-spacing: 0.02em;
+      font-weight: 650;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.85rem;
+      margin-top: 0.1rem;
+    }
+
+    .header-left {
+      display: grid;
+      gap: 0.15rem;
+    }
+
+    .status {
+      padding: 0.35rem 0.55rem;
+      border: 1px solid #2f4d82;
+      border-radius: 999px;
+      color: #c7d8ff;
+      background: rgba(29, 51, 90, 0.58);
+      font-size: 0.74rem;
+      white-space: nowrap;
+    }
+
     .chat {
-      height: min(65vh, 620px);
+      height: min(64vh, 620px);
       overflow-y: auto;
       padding: 1rem;
       display: grid;
+      align-content: start;
       gap: 0.75rem;
-      background: #0d132b;
+      background: linear-gradient(180deg, var(--bg-soft), #0a1124);
     }
+
     .bubble {
-      max-width: 85%;
-      padding: 0.7rem 0.85rem;
-      border-radius: 12px;
+      max-width: min(86%, 740px);
+      padding: 0.68rem 0.8rem;
+      border-radius: 13px;
       white-space: pre-wrap;
+      line-height: 1.45;
+      animation: pop-in 180ms ease-out;
+      box-shadow: 0 3px 14px rgba(0, 0, 0, 0.2);
     }
-    .user { margin-left: auto; background: #315bb8; }
-    .assistant { margin-right: auto; background: #1e2a4f; border: 1px solid #2f3b68; }
-    form {
-      padding: 0.9rem;
-      border-top: 1px solid #2d3766;
-      display: grid;
-      grid-template-columns: 1fr 110px;
+
+    @keyframes pop-in {
+      from {
+        transform: translateY(4px);
+        opacity: 0.4;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .user {
+      margin-left: auto;
+      background: linear-gradient(180deg, #4b7fe5, #3c67c5);
+      border: 1px solid #557ed2;
+    }
+
+    .assistant {
+      margin-right: auto;
+      background: #172448;
+      border: 1px solid #2e4579;
+    }
+
+    .meta-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
       gap: 0.6rem;
+      padding: 0.65rem 0.95rem;
+      border-top: 1px solid var(--border);
+      background: color-mix(in srgb, var(--panel-2) 30%, transparent);
+      color: var(--muted);
+      font-size: 0.79rem;
+    }
+
+    .chip {
+      padding: 0.1rem 0.45rem;
+      border-radius: 999px;
+      border: 1px solid #395894;
+      color: #c5d6ff;
+      background: rgba(29, 52, 96, 0.5);
+      margin-left: 0.3rem;
+      display: inline-block;
+    }
+
+    form {
+      padding: 0.82rem;
+      border-top: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.55rem;
       background: color-mix(in srgb, var(--panel-2) 45%, transparent);
     }
-    textarea, button {
-      width: 100%;
-      border: 1px solid #37457e;
-      border-radius: 8px;
-      background: #0f1530;
+
+    textarea,
+    button {
+      border: 1px solid #324c85;
+      border-radius: 10px;
+      background: #0e1732;
       color: var(--text);
       font: inherit;
       padding: 0.65rem 0.75rem;
     }
-    textarea::placeholder { color: #808ab8; }
+
+    textarea {
+      min-height: 48px;
+      resize: vertical;
+      max-height: 170px;
+    }
+
+    textarea::placeholder {
+      color: #7f8db8;
+    }
+
     button {
-      background: linear-gradient(180deg, #5e91ff, #3f73dc);
+      min-width: 105px;
+      background: linear-gradient(180deg, var(--accent), var(--accent-2));
       border: 0;
       font-weight: 600;
       cursor: pointer;
+      transition: transform 100ms ease, filter 100ms ease;
     }
-    @media (max-width: 720px) {
-      form { grid-template-columns: 1fr; }
-      .bubble { max-width: 100%; }
+
+    button:hover {
+      filter: brightness(1.05);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    @media (max-width: 760px) {
+      header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      form {
+        grid-template-columns: 1fr;
+      }
+
+      .bubble {
+        max-width: 100%;
+      }
+
+      button {
+        width: 100%;
+      }
     }
   </style>
 </head>
 <body>
   <main class="app">
     <header>
-      <h1>Offline Web AI Chat</h1>
-      <div class="hint">No API key required. This AI runs fully in your browser with rule-based responses.</div>
+      <div class="header-left">
+        <h1>Offline Web AI Chat</h1>
+        <div class="hint">Runs fully in your browser. Optimized replies with lightweight on-page learning.</div>
+      </div>
+      <div class="status" id="modelStatus">Model: adaptive rule engine</div>
     </header>
 
     <section class="chat" id="chat" aria-live="polite"></section>
 
+    <div class="meta-row">
+      <span id="memoryInfo">Memory: no topics yet</span>
+      <span id="speedInfo">Latency target <span class="chip">fast mode</span></span>
+    </div>
+
     <form id="chatForm">
-      <textarea id="prompt" rows="2" placeholder="Type a message..." required></textarea>
+      <textarea id="prompt" rows="2" placeholder="Type a message (try: summarize ..., /teach ..., /good, /bad, /train)" required></textarea>
       <button id="sendBtn" type="submit">Send</button>
     </form>
   </main>
@@ -105,11 +242,8 @@
   <script>
     const chatEl = document.getElementById('chat');
     const promptEl = document.getElementById('prompt');
-
-    const memory = {
-      userName: '',
-      topics: []
-    };
+    const memoryInfoEl = document.getElementById('memoryInfo');
+    const modelStatusEl = document.getElementById('modelStatus');
 
     function appendBubble(text, role = 'assistant') {
       const div = document.createElement('div');
@@ -119,61 +253,45 @@
       chatEl.scrollTop = chatEl.scrollHeight;
     }
 
-    function rememberTopic(text) {
-      const cleaned = text.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(Boolean);
-      const keywords = cleaned.filter(word => word.length > 4);
-      memory.topics = [...new Set([...memory.topics, ...keywords])].slice(-12);
+    function updateUiState(state) {
+      const topics = state.topics || [];
+      const learnedCount = state.learned_pairs || 0;
+      const qualityScore = state.quality_score || 0;
+      const responseStyle = state.response_style || 'balanced';
+
+      memoryInfoEl.textContent = topics.length
+        ? `Memory: ${topics.join(', ')} · learned pairs: ${learnedCount} · score: ${qualityScore}`
+        : `Memory: no topics yet · learned pairs: ${learnedCount} · score: ${qualityScore}`;
+      modelStatusEl.textContent = `Model: python adaptive backend (${responseStyle}, trained)`;
     }
 
-    function generateReply(input) {
-      const text = input.toLowerCase().trim();
-
-      const nameMatch = input.match(/(?:my name is|i am|i'm)\s+([a-zA-Z]+)/i);
-      if (nameMatch) {
-        memory.userName = nameMatch[1];
-        return `Nice to meet you, ${memory.userName}! I will remember your name in this session.`;
+    async function fetchState() {
+      try {
+        const response = await fetch('/api/state');
+        if (!response.ok) throw new Error('State fetch failed');
+        const state = await response.json();
+        updateUiState(state);
+      } catch (error) {
+        appendBubble('Could not connect to Python backend. Start server with: python3 app.py', 'assistant');
       }
-
-      if (/\b(hello|hi|hey)\b/.test(text)) {
-        return `Hey${memory.userName ? ` ${memory.userName}` : ''}! How can I help you today?`;
-      }
-
-      if (/\b(who are you|what are you)\b/.test(text)) {
-        return 'I am an offline web AI assistant. I do not use external APIs, and I answer from built-in logic.';
-      }
-
-      if (/\b(help|what can you do)\b/.test(text)) {
-        return 'I can chat, summarize your text, brainstorm ideas, and remember simple details (like your name) during this page session.';
-      }
-
-      if (text.startsWith('summarize ')) {
-        const content = input.slice(10).trim();
-        if (!content) return 'Please add text after "summarize".';
-        const sentences = content.split(/[.!?]/).map(s => s.trim()).filter(Boolean);
-        return sentences.length <= 1
-          ? `Summary: ${content}`
-          : `Summary: ${sentences[0]}. ${sentences[1] ? sentences[1] + '.' : ''}`.trim();
-      }
-
-      if (/\b(idea|brainstorm)\b/.test(text)) {
-        const seed = memory.topics[0] || 'your project';
-        return `Brainstorm ideas for ${seed}:\n1) Build a simple MVP\n2) Share with 5 users and collect feedback\n3) Improve based on real usage`;
-      }
-
-      rememberTopic(input);
-      const recent = memory.topics.slice(-3).join(', ');
-
-      const fallbackReplies = [
-        `Interesting. Tell me more${memory.userName ? `, ${memory.userName}` : ''}.`,
-        'Got it. Would you like a short plan or a detailed explanation?',
-        'I can help break that into steps if you want.',
-        recent ? `I noticed topics like: ${recent}. Want to go deeper on one?` : 'Can you share a little more context so I can help better?'
-      ];
-
-      return fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
     }
 
-    document.getElementById('chatForm').addEventListener('submit', (event) => {
+    async function sendMessage(userText) {
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: userText })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({ error: 'Backend error' }));
+        throw new Error(err.error || 'Backend error');
+      }
+
+      return response.json();
+    }
+
+    document.getElementById('chatForm').addEventListener('submit', async (event) => {
       event.preventDefault();
       const userText = promptEl.value.trim();
       if (!userText) return;
@@ -181,11 +299,17 @@
       appendBubble(userText, 'user');
       promptEl.value = '';
 
-      const reply = generateReply(userText);
-      setTimeout(() => appendBubble(reply, 'assistant'), 180);
+      try {
+        const data = await sendMessage(userText);
+        setTimeout(() => appendBubble(data.reply, 'assistant'), 120);
+        if (data.state) updateUiState(data.state);
+      } catch (error) {
+        appendBubble(`Backend error: ${error.message}`, 'assistant');
+      }
     });
 
-    appendBubble('Welcome! I am an offline AI chat assistant. No API key needed.', 'assistant');
+    appendBubble('Welcome! Python backend is enabled. Try: "summarize ...", "plan launch", "/teach question => answer", then "/good" or "/bad".', 'assistant');
+    fetchState();
   </script>
 </body>
 </html>
