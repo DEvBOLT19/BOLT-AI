@@ -234,7 +234,7 @@
     </div>
 
     <form id="chatForm">
-      <textarea id="prompt" rows="2" placeholder="Type a message (try: summarize ..., /teach ..., /good, /bad, /train)" required></textarea>
+      <textarea id="prompt" rows="2" placeholder="Type a message (try: summarize ..., plan ..., or /train)" required></textarea>
       <button id="sendBtn" type="submit">Send</button>
     </form>
   </main>
@@ -245,6 +245,38 @@
     const memoryInfoEl = document.getElementById('memoryInfo');
     const modelStatusEl = document.getElementById('modelStatus');
 
+    const memory = {
+      userName: '',
+      topics: [],
+      responseStyle: 'balanced',
+      conversationSamples: [],
+      learnedMap: {},
+      metrics: {
+        turns: 0,
+        avgInputLength: 0
+      }
+    };
+
+    function loadTrainingState() {
+      try {
+        const saved = localStorage.getItem('offline-ai-training-v1');
+        if (!saved) return;
+        const parsed = JSON.parse(saved);
+        memory.learnedMap = parsed.learnedMap || {};
+        memory.responseStyle = parsed.responseStyle || memory.responseStyle;
+      } catch {
+        // ignore invalid local state
+      }
+    }
+
+    function saveTrainingState() {
+      const trainingState = {
+        learnedMap: memory.learnedMap,
+        responseStyle: memory.responseStyle
+      };
+      localStorage.setItem('offline-ai-training-v1', JSON.stringify(trainingState));
+    }
+
     function appendBubble(text, role = 'assistant') {
       const div = document.createElement('div');
       div.className = `bubble ${role}`;
@@ -253,42 +285,204 @@
       chatEl.scrollTop = chatEl.scrollHeight;
     }
 
-    function updateUiState(state) {
-      const topics = state.topics || [];
-      const learnedCount = state.learned_pairs || 0;
-      const qualityScore = state.quality_score || 0;
-      const responseStyle = state.response_style || 'balanced';
-
+    function updateUiState() {
+      const topics = memory.topics.slice(-3);
+      const learnedCount = Object.keys(memory.learnedMap).length;
       memoryInfoEl.textContent = topics.length
-        ? `Memory: ${topics.join(', ')} · learned pairs: ${learnedCount} · score: ${qualityScore}`
-        : `Memory: no topics yet · learned pairs: ${learnedCount} · score: ${qualityScore}`;
-      modelStatusEl.textContent = `Model: python adaptive backend (${responseStyle}, trained)`;
+        ? `Memory: ${topics.join(', ')} · learned pairs: ${learnedCount}`
+        : `Memory: no topics yet · learned pairs: ${learnedCount}`;
+      modelStatusEl.textContent = `Model: adaptive rule engine (${memory.responseStyle}, trained)`;
     }
 
-    async function fetchState() {
-      try {
-        const response = await fetch('/api/state');
-        if (!response.ok) throw new Error('State fetch failed');
-        const state = await response.json();
-        updateUiState(state);
-      } catch (error) {
-        appendBubble('Could not connect to Python backend. Start server with: python3 app.py', 'assistant');
+    function tokenize(text) {
+      return text
+        .toLowerCase()
+        .replace(/[^a-z0-9\s]/g, ' ')
+        .split(/\s+/)
+        .filter(Boolean);
+    }
+
+    function rememberTopic(text) {
+      const keywords = tokenize(text).filter((word) => word.length > 4);
+      memory.topics = [...new Set([...memory.topics, ...keywords])].slice(-14);
+    }
+
+    function updateMetrics(input) {
+      memory.metrics.turns += 1;
+      const len = input.trim().length;
+      memory.metrics.avgInputLength =
+        (memory.metrics.avgInputLength * (memory.metrics.turns - 1) + len) / memory.metrics.turns;
+
+      if (memory.metrics.avgInputLength > 110) {
+        memory.responseStyle = 'detailed';
+      } else if (memory.metrics.avgInputLength < 45) {
+        memory.responseStyle = 'concise';
+      } else {
+        memory.responseStyle = 'balanced';
       }
     }
 
-    async function sendMessage(userText) {
-      const response = await fetch('/api/chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: userText })
+    function trainFromConversation(userText, aiReply) {
+      memory.conversationSamples.push({ userText, aiReply });
+      memory.conversationSamples = memory.conversationSamples.slice(-8);
+
+      const tokens = tokenize(userText);
+      if (tokens.includes('short') || tokens.includes('brief')) {
+        memory.responseStyle = 'concise';
+      }
+      if (tokens.includes('detailed') || tokens.includes('deep') || tokens.includes('explain')) {
+        memory.responseStyle = 'detailed';
+      }
+
+      const key = tokenize(userText).slice(0, 8).join(' ');
+      if (key.length > 8 && !memory.learnedMap[key]) {
+        memory.learnedMap[key] = aiReply;
+      }
+
+      saveTrainingState();
+    }
+
+    function matchLearnedReply(input) {
+      const normalized = tokenize(input).join(' ');
+      if (!normalized) return '';
+
+      let bestScore = 0;
+      let bestReply = '';
+
+      Object.entries(memory.learnedMap).forEach(([key, reply]) => {
+        const keyTokens = new Set(key.split(' '));
+        const inputTokens = new Set(normalized.split(' '));
+        let overlap = 0;
+        keyTokens.forEach((token) => {
+          if (inputTokens.has(token)) overlap += 1;
+        });
+
+        const score = overlap / Math.max(1, keyTokens.size);
+        if (score > bestScore) {
+          bestScore = score;
+          bestReply = reply;
+        }
       });
 
-      if (!response.ok) {
-        const err = await response.json().catch(() => ({ error: 'Backend error' }));
-        throw new Error(err.error || 'Backend error');
+      return bestScore >= 0.6 ? `From training memory: ${bestReply}` : '';
+    }
+
+    function teachFromInput(input) {
+      const payload = input.replace(/^\/teach\s*/i, '').trim();
+      const separator = payload.indexOf('=>');
+      if (separator < 0) {
+        return 'Usage: /teach question => answer';
       }
 
-      return response.json();
+      const question = payload.slice(0, separator).trim();
+      const answer = payload.slice(separator + 2).trim();
+      if (!question || !answer) {
+        return 'Please provide both question and answer. Example: /teach refund policy => Our refund window is 30 days.';
+      }
+
+      const key = tokenize(question).slice(0, 10).join(' ');
+      if (!key) return 'I could not parse that training question. Try longer text.';
+
+      memory.learnedMap[key] = answer;
+      saveTrainingState();
+      updateUiState();
+      return `Learned new pair: "${question}"`;
+    }
+
+    function summarizeText(content) {
+      const sentences = content
+        .split(/(?<=[.!?])\s+/)
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (sentences.length <= 1) {
+        return `Summary: ${content}`;
+      }
+
+      const first = sentences[0];
+      const middle = sentences[Math.floor(sentences.length / 2)] || '';
+      const last = sentences[sentences.length - 1] || '';
+      const merged = [first, middle, last]
+        .filter((value, index, arr) => value && arr.indexOf(value) === index)
+        .join(' ');
+
+      return `Summary: ${merged}`;
+    }
+
+    function buildPlan(input) {
+      const goal = input.replace(/^plan\s*/i, '').trim() || 'your goal';
+      return `Plan for ${goal}:\n1) Define the outcome and success metric.\n2) Build the smallest working version.\n3) Test with real users and note friction.\n4) Improve one high-impact area each cycle.`;
+    }
+
+    function getTonePrefix() {
+      if (memory.responseStyle === 'concise') return 'Quick answer: ';
+      if (memory.responseStyle === 'detailed') return 'Detailed answer: ';
+      return '';
+    }
+
+    function generateReply(input) {
+      const text = input.toLowerCase().trim();
+
+      if (text === '/train') {
+        const sampleCount = memory.conversationSamples.length;
+        const learnedCount = Object.keys(memory.learnedMap).length;
+        return `Training complete for this session. Learned from ${sampleCount} sample${sampleCount === 1 ? '' : 's'}, ${memory.topics.length} topic signals, and ${learnedCount} saved training pairs.`;
+      }
+
+      if (text.startsWith('/teach')) {
+        return teachFromInput(input);
+      }
+
+      const learnedReply = matchLearnedReply(input);
+      if (learnedReply) return learnedReply;
+
+      const nameMatch = input.match(/(?:my name is|i am|i'm)\s+([a-zA-Z]+)/i);
+      if (nameMatch) {
+        memory.userName = nameMatch[1];
+        return `Nice to meet you, ${memory.userName}! I'll remember your name during this session.`;
+      }
+
+      if (/\b(hello|hi|hey)\b/.test(text)) {
+        return `${getTonePrefix()}Hey${memory.userName ? ` ${memory.userName}` : ''}! How can I help you today?`;
+      }
+
+      if (/\b(who are you|what are you)\b/.test(text)) {
+        return 'I am an offline web AI assistant using optimized rule logic with in-session adaptive behavior.';
+      }
+
+      if (/\b(help|what can you do)\b/.test(text)) {
+        return 'I can chat, summarize content, create quick plans, brainstorm ideas, and adapt response style from your conversation.';
+      }
+    }
+
+      if (text.startsWith('summarize ')) {
+        const content = input.slice(10).trim();
+        if (!content) return 'Please add text after "summarize".';
+        return summarizeText(content);
+      }
+
+      if (text.startsWith('plan')) {
+        return buildPlan(input);
+      }
+
+      if (/\b(idea|brainstorm)\b/.test(text)) {
+        const seed = memory.topics[memory.topics.length - 1] || 'your project';
+        return `${getTonePrefix()}Brainstorm for ${seed}:\n1) Build one focused MVP flow\n2) Add a simple onboarding checklist\n3) Collect feedback from first 10 users\n4) Ship one visible improvement per week`;
+      }
+
+      rememberTopic(input);
+      const recent = memory.topics.slice(-3).join(', ');
+
+      const fallbackReplies = [
+        `${getTonePrefix()}Interesting. Tell me more${memory.userName ? `, ${memory.userName}` : ''}.`,
+        `${getTonePrefix()}I can convert this into a step-by-step plan if you want.`,
+        `${getTonePrefix()}Want a short answer or a deeper breakdown?`,
+        recent
+          ? `${getTonePrefix()}I noticed recurring topics: ${recent}. Want to focus on one?`
+          : `${getTonePrefix()}Share a bit more context and I can respond more precisely.`
+      ];
+
+      return fallbackReplies[Math.floor(Math.random() * fallbackReplies.length)];
     }
 
     document.getElementById('chatForm').addEventListener('submit', async (event) => {
@@ -299,17 +493,19 @@
       appendBubble(userText, 'user');
       promptEl.value = '';
 
-      try {
-        const data = await sendMessage(userText);
-        setTimeout(() => appendBubble(data.reply, 'assistant'), 120);
-        if (data.state) updateUiState(data.state);
-      } catch (error) {
-        appendBubble(`Backend error: ${error.message}`, 'assistant');
-      }
+      updateMetrics(userText);
+      rememberTopic(userText);
+
+      const reply = generateReply(userText);
+      trainFromConversation(userText, reply);
+      updateUiState();
+
+      setTimeout(() => appendBubble(reply, 'assistant'), 120);
     });
 
-    appendBubble('Welcome! Python backend is enabled. Try: "summarize ...", "plan launch", "/teach question => answer", then "/good" or "/bad".', 'assistant');
-    fetchState();
+    loadTrainingState();
+    appendBubble('Welcome! I am an offline AI assistant. Try: "summarize ...", "plan launch", "/train", or "/teach question => answer".', 'assistant');
+    updateUiState();
   </script>
 </body>
 </html>
